@@ -1,10 +1,6 @@
 import 'dart:async';
-
-import 'package:app_links/app_links.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
-const kWindowsScheme = 'sample';
+import 'package:app_links/app_links.dart';
 
 void main() {
   runApp(const MyApp());
@@ -25,29 +21,41 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-
     initDeepLinks();
   }
 
   @override
   void dispose() {
     _linkSubscription?.cancel();
-
     super.dispose();
   }
 
   Future<void> initDeepLinks() async {
     _appLinks = AppLinks();
 
-    // Handle links
     _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-      debugPrint('onAppLink: $uri');
+      print('Received deep link: $uri');
       openAppLink(uri);
+    }, onError: (err) {
+      print('Error receiving deep link: $err');
     });
+
+    // Handle the initial link when the app is launched
+    final initialLink = await _appLinks.getInitialLink();
+    if (initialLink != null) {
+      print('Initial deep link: $initialLink');
+      openAppLink(initialLink);
+    }
   }
 
   void openAppLink(Uri uri) {
-    _navigatorKey.currentState?.pushNamed(uri.fragment);
+    final routeName = uri.path;
+    if (uri.queryParameters['id'] != null) {
+      final bookId = uri.queryParameters['id'];
+      _navigatorKey.currentState?.pushNamed('/book/$bookId');
+    } else {
+      _navigatorKey.currentState?.pushNamed(routeName);
+    }
   }
 
   @override
@@ -58,16 +66,13 @@ class _MyAppState extends State<MyApp> {
       onGenerateRoute: (RouteSettings settings) {
         Widget routeWidget = defaultScreen();
 
-        // Mimic web routing
         final routeName = settings.name;
+        print('Generating route for: $routeName');
         if (routeName != null) {
           if (routeName.startsWith('/book/')) {
-            // Navigated to /book/:id
-            routeWidget = customScreen(
-              routeName.substring(routeName.indexOf('/book/')),
-            );
+            final bookId = routeName.split('/').last;
+            routeWidget = customScreen(bookId);
           } else if (routeName == '/book') {
-            // Navigated to /book without other parameters
             routeWidget = customScreen("None");
           }
         }
@@ -83,22 +88,12 @@ class _MyAppState extends State<MyApp> {
 
   Widget defaultScreen() {
     return Scaffold(
-      appBar: AppBar(title: const Text('Default Screen')),
+      appBar: AppBar(title: const Text('App Link')),
       body: const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SelectableText('''
-            Launch an intent to get to the second screen.
-
-            On web:
-            http://localhost:<port>/#/book/1 for example.
-
-            On windows & macOS, open your browser:
-            sample://foo/#/book/hello-deep-linking
-
-            This example code triggers new page from URL fragment.
-            '''),
+            SelectableText('Show Link'),
             SizedBox(height: 20),
           ],
         ),
